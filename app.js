@@ -1,396 +1,228 @@
 /**
- * HomeView Unified Script
- * Consolidated to run locally without a server (no modules).
+ * HomeView App (Smart Display Edition - Manual Scroll Support)
  */
 
-/* =========================================
-   1. Clock Component
-   ========================================= */
-function initClock() {
-    const clockEl = document.getElementById('clock-display');
-    const dateEl = document.getElementById('date-display');
-
-    function updateTime() {
-        const now = new Date();
-        const hours = String(now.getHours()).padStart(2, '0');
-        const minutes = String(now.getMinutes()).padStart(2, '0');
-
-        clockEl.textContent = `${hours}:${minutes}`;
-
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        const day = String(now.getDate()).padStart(2, '0');
-        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-        const dayName = days[now.getDay()];
-
-        dateEl.textContent = `${year}/${month}/${day} ${dayName}`;
-    }
-
-    updateTime();
-
-    const now = new Date();
-    const msUntilNextMinute = (60 - now.getSeconds()) * 1000 - now.getMilliseconds();
-
-    setTimeout(() => {
-        updateTime();
-        setInterval(updateTime, 60000);
-    }, msUntilNextMinute);
-}
-
-/* =========================================
-   2. News Service
-   ========================================= */
-const RSS_URL = 'https://news.google.com/rss?hl=ja&gl=JP&ceid=JP:ja';
-const API_URL = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(RSS_URL)}`;
-
-let cachedNews = null;
-let lastFetchTime = 0;
-const CACHE_DURATION = 30 * 60 * 1000;
-
-async function fetchNews() {
-    const now = Date.now();
-    if (cachedNews && (now - lastFetchTime < CACHE_DURATION)) {
-        return cachedNews;
-    }
-
-    try {
-        const response = await fetch(API_URL);
-        const data = await response.json();
-
-        if (data.status === 'ok') {
-            cachedNews = data.items.map(item => ({
-                title: item.title,
-                description: stripHtml(item.description),
-                source: item.author || 'Google News',
-                time: formatTime(item.pubDate),
-                link: item.link
-            }));
-            lastFetchTime = now;
-            return cachedNews;
-        } else {
-            console.error('News API Error:', data.message);
-            return getMockNews();
-        }
-    } catch (error) {
-        console.error('Fetch error:', error);
-        return getMockNews();
-    }
-}
-
-function stripHtml(html) {
-    if (!html) return '';
-    const temp = document.createElement('div');
-    temp.innerHTML = html;
-    return temp.textContent || temp.innerText || '';
-}
-
-function formatTime(dateStr) {
-    const date = new Date(dateStr);
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    return `${hours}:${minutes}`;
-}
-
-function getMockNews() {
-    return [
-        { title: 'Tech News: minimalist designs are trending', description: 'Designers are focusing on clean lines and negative space.', source: 'Design Weekly', time: '10:00' },
-        { title: 'Weather Update: Sunny week ahead', description: 'Expect clear skies for the next 7 days.', source: 'Weather Daily', time: '09:30' },
-        { title: 'Stock Market hits record highs', description: 'Global markets are rallying today.', source: 'Finance Now', time: '09:15' },
-    ];
-}
-
-/* =========================================
-   3. Weather Render
-   ========================================= */
-function renderWeather() {
-    const container = document.createElement('div');
-    container.className = 'weather-view';
-
-    // Mock Data
-    const data = {
-        city: 'Tokyo',
-        temp: 24,
-        condition: 'Clear',
-        icon: '☀'
-    };
-
-    const icons = {
-        'Clear': '☀',
-        'Cloudy': '☁',
-        'Rain': '☂'
-    };
-
-    const iconChar = icons[data.condition] || '☀';
-
-    container.innerHTML = `
-        <div class="weather-icon">${iconChar}</div>
-        <div class="weather-temp">${data.temp}<span class="unit">°C</span></div>
-        <div class="weather-city">${data.city}</div>
-    `;
-
-    return container;
-}
-
-/* =========================================
-   4. News Render
-   ========================================= */
-async function renderNews() {
-    const container = document.createElement('div');
-    container.className = 'news-container';
-    container.innerHTML = '<div class="loading">News Loading...</div>';
-
-    fetchNews().then(newsItems => {
-        container.innerHTML = '';
-        newsItems.forEach(item => {
-            const card = document.createElement('div');
-            card.className = 'news-card';
-            card.innerHTML = `
-                <div class="news-source">
-                    <span class="source-name">${item.source}</span>
-                    <span class="news-time">${item.time}</span>
-                </div>
-                <h3 class="news-title">${item.title}</h3>
-                <p class="news-desc">${item.description}</p>
-            `;
-            container.appendChild(card);
-        });
-    });
-
-    return container;
-}
-
-/* =========================================
-   5. Calendar Render
-   ========================================= */
-function renderCalendar() {
-    const container = document.createElement('div');
-    container.className = 'calendar-container';
-
-    const days = [];
-    const today = new Date();
-
-    for (let i = -3; i <= 7; i++) {
-        const date = new Date(today);
-        date.setDate(today.getDate() + i);
-        days.push({
-            date: date,
-            isToday: i === 0,
-            events: getMockEvents(i)
-        });
-    }
-
-    days.forEach(day => {
-        const dayEl = document.createElement('div');
-        dayEl.className = `calendar-day ${day.isToday ? 'today' : ''}`;
-
-        const dateStr = `${day.date.getMonth() + 1}/${day.date.getDate()}`;
-        const weekDay = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][day.date.getDay()];
-        let eventsHtml = '';
-        if (day.events.length > 0) {
-            eventsHtml = day.events.map(ev => `
-                <div class="cal-event">
-                    <span class="cal-time">${ev.time}</span>
-                    <span class="cal-title">${ev.title}</span>
-                </div>
-            `).join('');
-        } else {
-            eventsHtml = '<div class="no-events">No Events</div>';
-        }
-
-        dayEl.innerHTML = `
-            <div class="cal-header">
-                <span class="cal-date">${dateStr}</span>
-                <span class="cal-weekday">${weekDay}</span>
-            </div>
-            <div class="cal-body">
-                ${eventsHtml}
-            </div>
-        `;
-
-        container.appendChild(dayEl);
-    });
-
-    setTimeout(() => {
-        const todayEl = container.querySelector('.today');
-        if (todayEl) {
-            todayEl.scrollIntoView({ behavior: 'smooth', inline: 'center' });
-        }
-    }, 100);
-
-    return container;
-}
-
-function getMockEvents(offset) {
-    if (offset === 0) {
-        return [
-            { time: '10:00', title: 'Team Meeting' },
-            { time: '19:00', title: 'Dinner with Alice' }
-        ];
-    }
-    if (offset === 1) {
-        return [{ time: '14:00', title: 'Dentist Appointment' }];
-    }
-    if (offset === -1) {
-        return [{ time: '09:00', title: 'Project Review' }];
-    }
-    if (Math.random() > 0.7) {
-        return [{ time: '12:00', title: 'Lunch' }];
-    }
-    return [];
-}
-
-/* =========================================
-   6. Carousel Component
-   ========================================= */
-const VIEW_DURATION = {
-    WEATHER: 25000,
-    NEWS: 20000,
-    CALENDAR: 25000
-};
-
-const VIEWS = [
-    { type: 'WEATHER', render: renderWeather, duration: VIEW_DURATION.WEATHER },
-    { type: 'NEWS', render: renderNews, duration: VIEW_DURATION.NEWS },
-    { type: 'CALENDAR', render: renderCalendar, duration: VIEW_DURATION.CALENDAR }
-];
-
-let currentIndex = 0;
-let isPaused = false;
-let rotationTimer = null;
-let carouselElement = null;
-
-function initCarousel() {
-    carouselElement = document.getElementById('carousel-container');
-    if (!carouselElement) return;
-    showView(currentIndex);
-}
-
-function showView(index) {
-    if (!carouselElement) return;
-    carouselElement.classList.remove('active');
-
-    setTimeout(() => {
-        const view = VIEWS[index];
-        carouselElement.innerHTML = '';
-        const content = view.render();
-        // content might be a promise if async, but here renderNews returns an element immediately (with async fetch inside)
-        // Check if content is a promise (unlikely with current structure)
-        if (content instanceof Promise) {
-            content.then(el => carouselElement.appendChild(el));
-        } else {
-            carouselElement.appendChild(content);
-        }
-
-        carouselElement.classList.add('active');
-
-        if (!isPaused) {
-            clearTimeout(rotationTimer);
-            rotationTimer = setTimeout(nextView, view.duration);
-        }
-    }, 500);
-}
-
-function nextView() {
-    currentIndex = (currentIndex + 1) % VIEWS.length;
-    showView(currentIndex);
-}
-
-function pauseRotation() {
-    isPaused = true;
-    clearTimeout(rotationTimer);
-}
-
-function resumeRotation() {
-    isPaused = false;
-    const view = VIEWS[currentIndex];
-    clearTimeout(rotationTimer);
-    rotationTimer = setTimeout(nextView, view.duration);
-}
-
-/* =========================================
-   7. Interaction Component
-   ========================================= */
-let idleTimer = null;
-let longPressTimer = null;
-const IDLE_TIMEOUT = 30000;
-const LONG_PRESS_DURATION = 1000;
-
-function initInteraction() {
-    const container = document.querySelector('.info-area');
-    const activityEvents = ['mousedown', 'mousemove', 'wheel', 'touchstart', 'touchmove', 'scroll'];
-
-    activityEvents.forEach(evt => {
-        window.addEventListener(evt, handleActivity, { passive: true, capture: true });
-    });
-
-    container.addEventListener('touchstart', handleTouchStart, { passive: true });
-    container.addEventListener('touchend', handleTouchEnd);
-    container.addEventListener('mousedown', handleTouchStart);
-    container.addEventListener('mouseup', handleTouchEnd);
-}
-
-function handleActivity() {
-    if (!isAutoRotateEnabled) return; // Don't check activity if globally disabled
-
-    pauseRotation();
-    clearTimeout(idleTimer);
-    idleTimer = setTimeout(() => {
-        resumeRotation();
-        showFeedback('Auto Resume', '▶');
-    }, IDLE_TIMEOUT);
-}
-
-function handleTouchStart(e) {
-    longPressTimer = setTimeout(() => {
-        toggleRotationState();
-    }, LONG_PRESS_DURATION);
-}
-
-function handleTouchEnd(e) {
-    if (longPressTimer) {
-        clearTimeout(longPressTimer);
-        longPressTimer = null;
-    }
-}
-
-let isAutoRotateEnabled = true;
-
-function toggleRotationState() {
-    isAutoRotateEnabled = !isAutoRotateEnabled;
-    const msg = isAutoRotateEnabled ? 'Rotation ON' : 'Rotation OFF';
-    const icon = isAutoRotateEnabled ? '▶' : '⏸';
-    showFeedback(msg, icon);
-
-    if (isAutoRotateEnabled) {
-        handleActivity();
-    } else {
-        pauseRotation();
-        clearTimeout(idleTimer);
-    }
-}
-
-function showFeedback(text, icon) {
-    const el = document.getElementById('interaction-feedback');
-    const textEl = document.getElementById('feedback-text');
-    const iconEl = document.getElementById('feedback-icon');
-
-    if (!el) return;
-
-    textEl.textContent = text;
-    iconEl.textContent = icon;
-
-    el.classList.remove('hidden');
-    setTimeout(() => {
-        el.classList.add('hidden');
-    }, 2000);
-}
-
-/* =========================================
-   Main Initialization
-   ========================================= */
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('HomeView Initializing...');
     initClock();
     initCarousel();
     initInteraction();
 });
+
+/* --- Clock --- */
+function initClock() {
+    const clockEl = document.getElementById('clock-text');
+    const dateEl = document.getElementById('date-text');
+
+    function update() {
+        const now = new Date();
+        const h = String(now.getHours()).padStart(2, '0');
+        const m = String(now.getMinutes()).padStart(2, '0');
+        clockEl.textContent = `${h}:${m}`;
+
+        const options = { weekday: 'short', month: 'short', day: 'numeric' };
+        dateEl.textContent = now.toLocaleDateString('en-US', options);
+    }
+    update();
+    setInterval(update, 1000);
+}
+
+/* --- Carousel / Widgets --- */
+const WIDGETS = [
+    { id: 'weather', duration: 15000, render: renderWeather },
+    { id: 'news', duration: 20000, render: renderNews },
+    { id: 'calendar', duration: 15000, render: renderCalendar }
+];
+
+let currentIndex = 0;
+let carouselTimer = null;
+let carouselEl = null;
+
+function initCarousel() {
+    carouselEl = document.getElementById('widget-area');
+
+    // Initial Render
+    WIDGETS.forEach((widget) => {
+        const container = document.createElement('div');
+        container.className = 'view-container'; // Flex item
+        container.id = `view-${widget.id}`;
+        carouselEl.appendChild(container);
+
+        // Render content
+        widget.render(container);
+    });
+
+    createPagination();
+
+    // Listen for manual scroll
+    carouselEl.addEventListener('scroll', handleScroll, { passive: true });
+
+    startRotation();
+}
+
+function createPagination() {
+    const container = document.getElementById('pagination');
+    container.innerHTML = '';
+    WIDGETS.forEach((_, index) => {
+        const dot = document.createElement('div');
+        dot.className = `page-dot ${index === 0 ? 'active' : ''}`;
+        container.appendChild(dot);
+    });
+}
+
+function updatePagination(index) {
+    const dots = document.querySelectorAll('.page-dot');
+    dots.forEach((dot, i) => {
+        dot.classList.toggle('active', i === index);
+    });
+}
+
+/* Scroll Handling */
+let scrollTimeout;
+function handleScroll() {
+    if (!carouselEl) return;
+
+    // While scrolling, clear auto-rotate timer
+    clearTimeout(carouselTimer);
+
+    // Debounce index calculation
+    if (scrollTimeout) clearTimeout(scrollTimeout);
+
+    scrollTimeout = setTimeout(() => {
+        // Calculate current index (Vertical)
+        const height = carouselEl.clientHeight;
+        const scrollTop = carouselEl.scrollTop;
+        const newIndex = Math.round(scrollTop / height);
+
+        if (newIndex !== currentIndex && newIndex < WIDGETS.length) {
+            currentIndex = newIndex;
+            updatePagination(currentIndex);
+        }
+
+        // Restart timer after scroll settles
+        startRotation();
+    }, 100);
+}
+
+
+function startRotation() {
+    clearTimeout(carouselTimer);
+    const currentWidget = WIDGETS[currentIndex];
+    if (!currentWidget) return;
+
+    carouselTimer = setTimeout(() => {
+        nextWidget();
+    }, currentWidget.duration);
+}
+
+function nextWidget() {
+    currentIndex = (currentIndex + 1) % WIDGETS.length;
+    scrollToWidget(currentIndex);
+}
+
+function scrollToWidget(index) {
+    if (!carouselEl) return;
+    const height = carouselEl.clientHeight;
+    carouselEl.scrollTo({
+        top: height * index,
+        behavior: 'smooth'
+    });
+    // Pagination updates via handleScroll listener
+}
+
+/* --- Renderers --- */
+function renderWeather(container) {
+    const data = { temp: 15, cond: 'Partly Cloudy', high: 16, low: 14 };
+    container.innerHTML = `
+        <div class="weather-view">
+            <div class="weather-header">
+                <div>
+                    <div class="weather-condition-text">Cloudy</div>
+                    <div class="weather-sub">Tokyo • ↑${data.high}° ↓${data.low}°</div>
+                </div>
+            </div>
+            <div class="weather-big-temp">${data.temp}°</div>
+            <div class="weather-forecast-row">
+                ${[12, 15, 18, 21, 0, 3].map(h => `
+                    <div class="forecast-col">
+                        <span style="font-size:0.9rem; opacity:0.7">${h}:00</span>
+                        <span style="font-size:1.5rem">☁</span>
+                        <span style="font-weight:600">${10 + Math.floor(Math.random() * 5)}°</span>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `;
+}
+
+function renderNews(container) {
+    const newsData = [
+        { title: "Global Markets Rally as Tech Stocks Surge", source: "Bloomberg", img: "linear-gradient(45deg, #111, #333)" },
+        { title: "New EV Battery Tech promises 1000km range", source: "TechCrunch", img: "linear-gradient(45deg, #202020, #404040)" }
+    ];
+    const wrapper = document.createElement('div');
+    wrapper.className = 'news-view';
+    const scroller = document.createElement('div');
+    scroller.className = 'news-scroller';
+
+    newsData.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'news-card';
+        card.style.background = item.img;
+        card.innerHTML = `
+            <div class="news-content">
+                <span class="news-source">${item.source}</span>
+                <div class="news-headline">${item.title}</div>
+                <div class="news-meta-row">
+                    <span>10 mins ago</span>
+                </div>
+            </div>
+        `;
+        scroller.appendChild(card);
+    });
+    wrapper.appendChild(scroller);
+    container.appendChild(wrapper);
+}
+
+function renderCalendar(container) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'calendar-view';
+    wrapper.innerHTML = '<h2 style="font-size:1.8rem; font-weight:600; margin-bottom:16px;">Schedule</h2>';
+
+    const scroller = document.createElement('div');
+    scroller.className = 'cal-scroller';
+
+    for (let i = 0; i < 7; i++) {
+        const d = new Date(); d.setDate(d.getDate() + i);
+        const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+        const dayNum = d.getDate();
+
+        const row = document.createElement('div');
+        row.className = 'cal-day-row';
+        row.innerHTML = `
+            <div class="cal-date-badge">
+                <span style="font-size:0.9rem; opacity:0.8">${dayName}</span>
+                <span style="font-size:1.4rem">${dayNum}</span>
+            </div>
+            <div class="cal-event-info">
+                <span class="cal-time">10:00 AM - 11:30 AM</span>
+                <div class="cal-title">${i === 0 ? 'Team Sync & Review' : 'Focus Time'}</div>
+            </div>
+        `;
+        scroller.appendChild(row);
+    }
+    wrapper.appendChild(scroller);
+    container.appendChild(wrapper);
+}
+
+/* --- Interaction --- */
+function initInteraction() {
+    // Simply reset timer on any interaction to prevent auto-move while reading
+    ['mousedown', 'touchstart', 'mousemove'].forEach(evt => {
+        window.addEventListener(evt, () => {
+            // Handled by handleScroll largely, but adding global activity reset if needed
+            // Actually, handleScroll handles the main "carousel" interaction.
+            // This global listener is good for "reading" without scrolling.
+            startRotation(); // Resets the timer
+        }, { passive: true });
+    });
+}

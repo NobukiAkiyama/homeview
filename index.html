@@ -5,36 +5,36 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HomeView</title>
-    <!-- Google Fonts: Inter for numbers/UI, Noto Sans JP for Japanese text -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Noto+Sans+JP:wght@400;500;700&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700&family=Noto+Sans+JP:wght@400;700&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
-    <main class="container">
-        <!-- Left: Clock Area -->
+    <div class="container">
+        <!-- Left: Identity -->
         <section class="clock-area">
-            <div id="clock-display" class="clock-text">--:--</div>
-            <div id="date-display" class="date-text">----/--/--</div>
+            <div id="clock-text" class="clock-text">--:--</div>
+            <div id="date-text" class="date-text">---, --- --</div>
         </section>
 
-        <!-- Right: Info Area (Carousel) -->
+        <!-- Right: Content Widget -->
         <section class="info-area">
-            <div id="carousel-container" class="carousel">
-                <!-- Content will be injected by JS -->
+            <div id="widget-area" class="carousel">
+                <!-- Views injected via JS -->
             </div>
 
-            <!-- Indicators or Status (Hidden by default, used for interaction feedback) -->
-            <div id="interaction-feedback" class="feedback-overlay hidden">
-                <span id="feedback-icon"></span>
-                <span id="feedback-text"></span>
+            <!-- Pagination Overlay -->
+            <div id="pagination" class="pagination-container">
+                <!-- Dots injected via JS -->
             </div>
         </section>
-    </main>
+    </div>
+
+
 
     <script src="app.js"></script>
 </body>
