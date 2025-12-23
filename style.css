@@ -1,0 +1,357 @@
+:root {
+    /* Colors - Dark Premium Theme */
+    --bg-color: #0f1115;
+    --text-primary: #ffffff;
+    --text-secondary: #8b9bb4;
+    --accent-color: #3b82f6;
+
+    /* Layout */
+    --clock-width: 40vw;
+    /* Default split for landscape */
+
+    /* Transitions */
+    --transition-speed: 0.3s;
+    --carousel-transition: 500ms cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    /* Prevent selection for display */
+}
+
+body {
+    background-color: var(--bg-color);
+    color: var(--text-primary);
+    font-family: 'Inter', 'Noto Sans JP', sans-serif;
+    overflow: hidden;
+    /* Prevent body scroll */
+    width: 100vw;
+    height: 100vh;
+}
+
+.container {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+    height: 100%;
+}
+
+/* --- Clock Area --- */
+.clock-area {
+    flex: 0 0 var(--clock-width);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background: radial-gradient(circle at center, #1a1d23 0%, #0f1115 100%);
+    border-right: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 2rem;
+}
+
+.clock-text {
+    font-size: clamp(4rem, 15vw, 12rem);
+    font-weight: 300;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    letter-spacing: -0.05em;
+}
+
+.date-text {
+    font-size: clamp(1rem, 2vw, 2rem);
+    color: var(--text-secondary);
+    margin-top: 1rem;
+    font-weight: 400;
+}
+
+/* --- Info Area --- */
+.info-area {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background-color: var(--bg-color);
+}
+
+.carousel {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 0.5s ease-out, transform 0.5s ease-out;
+}
+
+.carousel.active {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* Interaction Feedback */
+.feedback-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.7);
+    padding: 1rem 2rem;
+    border-radius: 99px;
+    backdrop-filter: blur(10px);
+    pointer-events: none;
+    transition: opacity 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.hidden {
+    opacity: 0;
+}
+
+/* --- Responsive (Portrait) --- */
+@media (max-aspect-ratio: 1/1) {
+    .container {
+        flex-direction: column;
+    }
+
+    .clock-area {
+        flex: 0 0 35vh;
+        /* Top part for clock */
+        border-right: none;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .clock-text {
+        font-size: clamp(4rem, 20vw, 8rem);
+    }
+}
+
+/* --- Weather Component --- */
+.weather-view {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    color: var(--text-primary);
+}
+
+.weather-icon {
+    font-size: clamp(4rem, 10vw, 8rem);
+    line-height: 1;
+    margin-bottom: 1rem;
+    color: #fbbf24;
+    /* Sun color */
+}
+
+.weather-temp {
+    font-size: clamp(3rem, 8vw, 6rem);
+    font-weight: 300;
+    line-height: 1;
+}
+
+.weather-temp .unit {
+    font-size: 0.5em;
+    vertical-align: super;
+    opacity: 0.7;
+}
+
+.weather-city {
+    font-size: clamp(1rem, 2vw, 2rem);
+    color: var(--text-secondary);
+    font-weight: 500;
+    letter-spacing: 0.1em;
+}
+
+/* --- News Component --- */
+.news-container {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-behavior: smooth;
+    align-items: center;
+    padding: 0 10%;
+    /* Center the card */
+    gap: 2rem;
+    /* Hide scrollbar */
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.news-container::-webkit-scrollbar {
+    display: none;
+}
+
+.news-card {
+    flex: 0 0 80%;
+    /* 80% width of container */
+    max-width: 600px;
+    height: 70%;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 1.5rem;
+    padding: 2rem;
+    scroll-snap-align: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    transition: transform 0.3s, opacity 0.3s;
+}
+
+.news-source {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    margin-bottom: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.news-title {
+    font-size: clamp(1.2rem, 4vw, 2rem);
+    font-weight: 600;
+    margin-bottom: 1rem;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.news-desc {
+    font-size: 1rem;
+    color: #cbd5e1;
+    line-height: 1.6;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    opacity: 0.8;
+}
+
+/* --- Calendar Component --- */
+.calendar-container {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-behavior: smooth;
+    align-items: center;
+    padding: 0 10%;
+    gap: 1rem;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.calendar-container::-webkit-scrollbar {
+    display: none;
+}
+
+.calendar-day {
+    flex: 0 0 45%;
+    /* Show approx 2 days fully, or focused one */
+    max-width: 300px;
+    height: 60%;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 1rem;
+    padding: 1.5rem;
+    scroll-snap-align: center;
+    display: flex;
+    flex-direction: column;
+    color: var(--text-secondary);
+    transition: transform 0.3s, background 0.3s;
+}
+
+.calendar-day.today {
+    background: rgba(59, 130, 246, 0.1);
+    border-color: var(--accent-color);
+    color: var(--text-primary);
+    transform: scale(1.05);
+    /* Highlight today */
+}
+
+.cal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.cal-date {
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+.cal-weekday {
+    font-size: 1rem;
+    text-transform: uppercase;
+}
+
+.cal-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+    overflow-y: hidden;
+    /* No vertical scroll as per spec */
+}
+
+.cal-event {
+    display: flex;
+    gap: 1rem;
+    align-items: baseline;
+}
+
+.cal-time {
+    font-size: 0.9rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--accent-color);
+}
+
+.cal-title {
+    font-size: 1rem;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.no-events {
+    font-style: italic;
+    opacity: 0.5;
+    margin-top: 1rem;
+}
+
+.loading {
+    font-size: 1.5rem;
+    color: var(--text-secondary);
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        opacity: 0.5;
+    }
+
+    50% {
+        opacity: 1;
+    }
+
+    100% {
+        opacity: 0.5;
+    }
+}
