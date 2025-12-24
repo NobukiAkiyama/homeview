@@ -320,24 +320,65 @@ async function renderNews(container) {
         // Render cache
         scroller.innerHTML = '';
 
-        // Add pagination indicator container to wrapper (not scroller)
+        // Smart Pagination: Show max 5 indicators (4 dots + 1 active bar) when 5+ items
         let indicatorBox = wrapper.querySelector('.news-indicator-box');
         if (!indicatorBox) {
             indicatorBox = document.createElement('div');
             indicatorBox.className = 'news-indicator-box';
             wrapper.appendChild(indicatorBox);
         }
-        indicatorBox.innerHTML = newsCache.map((_, i) => `<div class="news-dot ${i === 0 ? 'active' : ''}"></div>`).join('');
+
+        const totalItems = newsCache.length;
+        const MAX_VISIBLE = 5;
+
+        function renderPaginationDots(activeIndex) {
+            if (totalItems <= MAX_VISIBLE) {
+                // Show all dots normally
+                indicatorBox.innerHTML = newsCache.map((_, i) =>
+                    `<div class="news-dot ${i === activeIndex ? 'active' : ''}" data-index="${i}"></div>`
+                ).join('');
+            } else {
+                // Cyclic pagination: bar position cycles through 0-4 as user scrolls
+                let dots = [];
+
+                // Calculate which position (0-4) the bar should be at
+                // This ensures the bar moves on EVERY scroll (forward and backward)
+                const barPosition = activeIndex % MAX_VISIBLE;
+
+                // Calculate the window of items to show
+                // Always center the window around the active item based on bar position
+                let startIndex = activeIndex - barPosition;
+
+                // Clamp to valid range
+                if (startIndex < 0) {
+                    startIndex = 0;
+                } else if (startIndex > totalItems - MAX_VISIBLE) {
+                    startIndex = totalItems - MAX_VISIBLE;
+                }
+
+                // Generate 5 dots
+                for (let i = 0; i < MAX_VISIBLE; i++) {
+                    const itemIndex = startIndex + i;
+                    const isActive = i === barPosition && itemIndex === activeIndex;
+                    dots.push(`<div class="news-dot ${isActive ? 'active' : ''}" data-index="${itemIndex}"></div>`);
+                }
+
+                indicatorBox.innerHTML = dots.join('');
+            }
+        }
+
+        renderPaginationDots(0);
 
         // Add click listeners to dots
-        const dots = indicatorBox.querySelectorAll('.news-dot');
-        dots.forEach((dot, index) => {
-            dot.addEventListener('click', () => {
+        indicatorBox.addEventListener('click', (e) => {
+            const dot = e.target.closest('.news-dot');
+            if (dot) {
+                const targetIndex = parseInt(dot.dataset.index);
                 scroller.scrollTo({
-                    left: index * scroller.clientWidth,
+                    left: targetIndex * scroller.clientWidth,
                     behavior: 'smooth'
                 });
-            });
+            }
         });
 
         newsCache.forEach((item, index) => {
@@ -393,10 +434,8 @@ async function renderNews(container) {
             const scrollLeft = scroller.scrollLeft;
             const index = Math.round(scrollLeft / width);
 
-            const dots = indicatorBox.querySelectorAll('.news-dot');
-            dots.forEach((dot, i) => {
-                dot.classList.toggle('active', i === index);
-            });
+            // Re-render pagination with new active index
+            renderPaginationDots(index);
         }, { passive: true });
 
     } catch (e) {

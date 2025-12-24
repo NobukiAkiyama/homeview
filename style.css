@@ -135,8 +135,8 @@ body {
 }
 
 .page-dot {
-    width: 6px;
-    height: 6px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
     background: rgba(255, 255, 255, 0.3);
     transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
@@ -155,7 +155,10 @@ body {
 
 .page-dot.active {
     background: white;
-    transform: scale(1.5);
+    width: 8px;
+    height: 24px;
+    /* Elongated bar */
+    border-radius: 4px;
     box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
 }
 
@@ -285,12 +288,17 @@ body {
     height: 8px;
     border-radius: 50%;
     background: rgba(255, 255, 255, 0.3);
-    transition: all 0.3s ease;
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    cursor: pointer;
 }
 
 .news-dot.active {
     background: #fff;
-    transform: scale(1.2);
+    width: 24px;
+    /* Elongated bar - horizontal for news */
+    height: 8px;
+    border-radius: 4px;
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
 }
 
 
