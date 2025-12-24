@@ -144,63 +144,135 @@ function scrollToWidget(index) {
 }
 
 /* --- Renderers --- */
-function renderWeather(container) {
-    const conditions = [
-        {
-            cond: 'Sunny',
-            temp: 24,
-            high: 28,
-            low: 18,
-            bg: 'assets/weather_sunny.png',
-            overlay: 'rgba(0,0,0,0.2)', // Sunny needs less dark, or maybe just shadow
-            icon: '☀'
-        },
-        {
-            cond: 'Cloudy',
-            temp: 18,
-            high: 20,
-            low: 15,
-            bg: 'assets/weather_cloudy.png',
-            overlay: 'rgba(0,0,0,0.4)',
-            icon: '☁'
-        },
-        {
-            cond: 'Rainy',
-            temp: 14,
-            high: 16,
-            low: 12,
-            bg: 'assets/weather_rainy.png',
-            overlay: 'rgba(0,0,0,0.5)',
-            icon: '☂'
-        }
-    ];
+const WEATHER_CODE_MAP = {
+    0: { label: '快晴', icon: '☀', bg: 'assets/weather_sunny.png', overlay: 'rgba(0,0,0,0.2)' },
+    1: { label: '晴れ', icon: '🌤', bg: 'assets/weather_sunny.png', overlay: 'rgba(0,0,0,0.2)' },
+    2: { label: '薄曇り', icon: '⛅', bg: 'assets/weather_cloudy.png', overlay: 'rgba(0,0,0,0.4)' },
+    3: { label: '曇り', icon: '☁', bg: 'assets/weather_cloudy.png', overlay: 'rgba(0,0,0,0.4)' },
+    45: { label: '霧', icon: '🌫', bg: 'assets/weather_cloudy.png', overlay: 'rgba(0,0,0,0.5)' },
+    48: { label: '霧', icon: '🌫', bg: 'assets/weather_cloudy.png', overlay: 'rgba(0,0,0,0.5)' },
+    51: { label: '霧雨', icon: '🌧', bg: 'assets/weather_rainy.png', overlay: 'rgba(0,0,0,0.5)' },
+    53: { label: '霧雨', icon: '🌧', bg: 'assets/weather_rainy.png', overlay: 'rgba(0,0,0,0.5)' },
+    55: { label: '霧雨', icon: '🌧', bg: 'assets/weather_rainy.png', overlay: 'rgba(0,0,0,0.5)' },
+    61: { label: '雨', icon: '☔', bg: 'assets/weather_rainy.png', overlay: 'rgba(0,0,0,0.6)' },
+    63: { label: '雨', icon: '☔', bg: 'assets/weather_rainy.png', overlay: 'rgba(0,0,0,0.6)' },
+    65: { label: '激しい雨', icon: '⛈', bg: 'assets/weather_rainy.png', overlay: 'rgba(0,0,0,0.7)' },
+    80: { label: 'にわか雨', icon: '🌦', bg: 'assets/weather_rainy.png', overlay: 'rgba(0,0,0,0.6)' },
+    81: { label: 'にわか雨', icon: '🌦', bg: 'assets/weather_rainy.png', overlay: 'rgba(0,0,0,0.6)' },
+    82: { label: 'にわか雨', icon: '🌦', bg: 'assets/weather_rainy.png', overlay: 'rgba(0,0,0,0.7)' },
+    95: { label: '雷雨', icon: '⚡', bg: 'assets/weather_rainy.png', overlay: 'rgba(0,0,0,0.7)' },
+    96: { label: '雷雨', icon: '⚡', bg: 'assets/weather_rainy.png', overlay: 'rgba(0,0,0,0.7)' },
+    99: { label: '雷雨', icon: '⚡', bg: 'assets/weather_rainy.png', overlay: 'rgba(0,0,0,0.7)' }
+};
 
-    // Pick a random condition for demonstration
-    const weather = conditions[Math.floor(Math.random() * conditions.length)];
+const DEFAULT_WEATHER = { label: '曇り', icon: '☁', bg: 'assets/weather_cloudy.png', overlay: 'rgba(0,0,0,0.4)' };
 
-    // Apply background with overlay for readability
-    const bgStyle = `background: linear-gradient(${weather.overlay}, ${weather.overlay}), url('${weather.bg}') center/cover no-repeat;`;
+async function renderWeather(container) {
+    // Check if we already have a location cached to speed up render, or use default view first
+    container.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;height:100%;font-size:1.5rem;opacity:0.6;">Locating...</div>';
 
-    container.innerHTML = `
-        <div class="weather-view" style="${bgStyle}">
-            <div class="weather-header">
-                <div>
-                    <div class="weather-condition-text">${weather.cond}</div>
-                    <div class="weather-sub">Tokyo • ↑${weather.high}° ↓${weather.low}°</div>
+    try {
+        // 1. Get Location
+        const pos = await new Promise((resolve, reject) => {
+            if (!navigator.geolocation) reject(new Error("Geolocation not supported"));
+            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 });
+        });
+        const { latitude: lat, longitude: lon } = pos.coords;
+
+        // 2. Fetch Weather Data
+        // 2. Fetch Weather & Location Data Parallelly
+        const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,relative_humidity_2m,is_day&hourly=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=1`;
+        const geoUrl = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=ja`;
+
+        const [weatherRes, geoRes] = await Promise.all([
+            fetch(weatherUrl),
+            fetch(geoUrl)
+        ]);
+
+        if (!weatherRes.ok) throw new Error('Weather API Error');
+        const data = await weatherRes.json();
+        const geoData = await geoRes.json();
+
+        // Extract location name (Concat parts for full address: e.g. "OsakaSakaiHigashi-ku")
+        const locationName = [
+            geoData.principalSubdivision,
+            geoData.city,
+            geoData.locality
+        ].filter(Boolean).join('') || 'Unknown Location';
+
+        // 3. Parse Data
+        const current = data.current;
+        const daily = data.daily;
+        const weatherInfo = WEATHER_CODE_MAP[current.weather_code] || DEFAULT_WEATHER;
+
+        // Adjust background for night time if needed (optional improvement for later)
+
+        const temp = Math.round(current.temperature_2m);
+        const high = Math.round(daily.temperature_2m_max[0]);
+        const low = Math.round(daily.temperature_2m_min[0]);
+
+        // Apply background with overlay
+        const bgStyle = `background: linear-gradient(${weatherInfo.overlay}, ${weatherInfo.overlay}), url('${weatherInfo.bg}') center/cover no-repeat;`;
+
+        container.innerHTML = `
+            <div class="weather-view" style="${bgStyle}">
+                <div class="weather-header">
+                    <div>
+                        <div class="weather-condition-text">${weatherInfo.label}</div>
+                        <div class="weather-sub">${locationName} • 最高:${high}° 最低:${low}°</div>
+                    </div>
+                </div>
+                <div class="weather-big-temp">
+                    ${temp}<span style="font-size:4rem;vertical-align:top;">°</span>
+                    <span style="font-size:2rem;margin-left:12px;">${weatherInfo.icon}</span>
+                </div>
+                
+                <div class="weather-forecast-row" style="overflow-x:auto;">
+                    ${renderHourlyForecast(data.hourly)}
                 </div>
             </div>
-            <div class="weather-big-temp">${weather.temp}°</div>
-            <div class="weather-forecast-row">
-                ${[12, 15, 18, 21, 0, 3].map(h => `
-                    <div class="forecast-col">
-                        <span style="font-size:0.9rem; opacity:0.9">${h}:00</span>
-                        <span style="font-size:1.5rem">${weather.icon}</span>
-                        <span style="font-weight:600">${weather.temp - 2 + Math.floor(Math.random() * 4)}°</span>
-                    </div>
-                `).join('')}
+        `;
+
+    } catch (err) {
+        console.warn("Weather load failed", err);
+        container.innerHTML = `
+            <div class="weather-view" style="background: url('assets/weather_cloudy.png') center/cover;">
+                <div style="background:rgba(0,0,0,0.6);padding:24px;border-radius:12px;">
+                    <div style="font-size:1.2rem;margin-bottom:8px;">Unable to load weather</div>
+                    <div style="font-size:0.9rem;opacity:0.8;">Please allow location access.</div>
+                </div>
             </div>
-        </div>
-    `;
+        `;
+    }
+}
+
+function renderHourlyForecast(hourly) {
+    if (!hourly || !hourly.time) return '';
+
+    // API returns data starting from 00:00 today. Find current hour index.
+    const currentHour = new Date().getHours();
+
+    let html = '';
+    // Show next 6 hours
+    for (let i = 1; i <= 6; i++) {
+        const idx = currentHour + i;
+        if (idx >= hourly.time.length) break;
+
+        const timeStr = hourly.time[idx]; // "YYYY-MM-DDTHH:00"
+        const hourLabel = timeStr.split('T')[1].slice(0, 5); // "HH:00"
+        const temp = Math.round(hourly.temperature_2m[idx]);
+        const code = hourly.weather_code[idx];
+        const icon = (WEATHER_CODE_MAP[code] || DEFAULT_WEATHER).icon;
+
+        html += `
+            <div class="forecast-col">
+                <span style="font-size:0.9rem; opacity:0.7">${hourLabel}</span>
+                <span style="font-size:1.5rem">${icon}</span>
+                <span style="font-weight:600">${temp}°</span>
+            </div>
+        `;
+    }
+    return html;
 }
 
 // Global cache to prevent re-fetching every rotation (optional, but good for rate limits)
