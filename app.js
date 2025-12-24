@@ -65,6 +65,20 @@ function createPagination() {
     WIDGETS.forEach((_, index) => {
         const dot = document.createElement('div');
         dot.className = `page-dot ${index === 0 ? 'active' : ''}`;
+
+        // Click to scroll (Vertical)
+        dot.addEventListener('click', () => {
+            // Ensure we are scrolling the main carousel container
+            const height = carouselEl.clientHeight;
+            carouselEl.scrollTo({
+                top: index * height,
+                behavior: 'smooth'
+            });
+            // Reset timer on manual interaction
+            clearTimeout(carouselTimer);
+            startRotation();
+        });
+
         container.appendChild(dot);
     });
 }
@@ -251,8 +265,8 @@ async function renderNews(container) {
 
     try {
         const now = Date.now();
-        // 5 minute cache
-        if (!newsCache || (now - lastNewsFetch > 300000)) {
+        // 60 minute cache (1h)
+        if (!newsCache || (now - lastNewsFetch > 3600000)) {
             // Pick 3 random feeds to mix, plus always include Reuters Top or simply mix all?
             // Let's fetch 3 random ones to keep it varied but fast.
             const shuffled = RSS_FEEDS.sort(() => 0.5 - Math.random());
@@ -313,18 +327,20 @@ async function renderNews(container) {
             indicatorBox.className = 'news-indicator-box';
             wrapper.appendChild(indicatorBox);
         }
-        indicatorBox.innerHTML = newsCache.map((_, i) => `<div class="news-dot ${i === 0 ? 'active' : ''}"></div>`).join('');
+        // Initial Pagination Render (Windowed)
+        updateNewsIndicators(indicatorBox, scroller, 0, newsCache.length);
 
-        // Add click listeners to dots
-        const dots = indicatorBox.querySelectorAll('.news-dot');
-        dots.forEach((dot, index) => {
-            dot.addEventListener('click', () => {
-                scroller.scrollTo({
-                    left: index * scroller.clientWidth,
-                    behavior: 'smooth'
-                });
-            });
-        });
+        // Add scroll listener for dots (Windowed Logic)
+        let scrollTimeout;
+        scroller.addEventListener('scroll', () => {
+            if (scrollTimeout) clearTimeout(scrollTimeout);
+            scrollTimeout = setTimeout(() => {
+                const width = scroller.clientWidth;
+                const scrollLeft = scroller.scrollLeft;
+                const newIndex = Math.round(scrollLeft / width);
+                updateNewsIndicators(indicatorBox, scroller, newIndex, newsCache.length);
+            }, 50); // slight debounce
+        }, { passive: true });
 
         newsCache.forEach((item, index) => {
             const card = document.createElement('div');
@@ -372,18 +388,6 @@ async function renderNews(container) {
             `;
             scroller.appendChild(card);
         });
-
-        // Add scroll listener for dots
-        scroller.addEventListener('scroll', () => {
-            const width = scroller.clientWidth;
-            const scrollLeft = scroller.scrollLeft;
-            const index = Math.round(scrollLeft / width);
-
-            const dots = indicatorBox.querySelectorAll('.news-dot');
-            dots.forEach((dot, i) => {
-                dot.classList.toggle('active', i === index);
-            });
-        }, { passive: true });
 
     } catch (e) {
         console.error("News Fetch Failed", e);

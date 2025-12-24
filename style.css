@@ -268,29 +268,33 @@ body {
     bottom: 24px;
     left: 50%;
     transform: translateX(-50%);
-    width: auto;
-
-    background: rgba(0, 0, 0, 0.4);
-    backdrop-filter: blur(8px);
-    border-radius: 100px;
-    padding: 8px 16px;
     display: flex;
-    gap: 12px;
+    gap: 8px;
+    /* Standard gap */
     z-index: 10;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    pointer-events: auto;
+    /* Ensure clickable */
 }
 
+/* Base styles for both Main and News dots */
 .news-dot {
     width: 8px;
     height: 8px;
-    border-radius: 50%;
+    border-radius: 4px;
+    /* Circle initially */
     background: rgba(255, 255, 255, 0.3);
-    transition: all 0.3s ease;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    cursor: pointer;
 }
 
+/* Active State: Long Pill (Bar) */
 .news-dot.active {
+    width: 32px;
+    /* Slightly longer bar */
     background: #fff;
-    transform: scale(1.2);
+    border-color: #fff;
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
 }
 
 
