@@ -193,6 +193,51 @@ function renderWeather(container) {
 let newsCache = null;
 let lastNewsFetch = 0;
 
+const RSS_FEEDS = [
+    {
+        name: 'ロイター Top',
+        url: 'https://assets.wor.jp/rss/rdf/reuters/top.rdf',
+        color: '#ff8000',
+        bgImg: 'assets/news_bloomberg.png'
+    },
+    {
+        name: '日経 速報',
+        url: 'https://assets.wor.jp/rss/rdf/nikkei/news.rdf',
+        color: '#0066b3',
+        bgImg: 'assets/news_nikkei.png'
+    },
+    {
+        name: '日経 テック',
+        url: 'https://assets.wor.jp/rss/rdf/nikkei/technology.rdf',
+        color: '#00afcc',
+        bgImg: 'assets/news_nikkei.png'
+    },
+    {
+        name: '読売 新着',
+        url: 'https://assets.wor.jp/rss/rdf/yomiuri/latestnews.rdf',
+        color: '#ef492d',
+        bgImg: 'assets/news_yomiuri.png'
+    },
+    {
+        name: '読売 科学',
+        url: 'https://assets.wor.jp/rss/rdf/yomiuri/science.rdf',
+        color: '#4b9846',
+        bgImg: 'assets/news_yomiuri.png'
+    },
+    {
+        name: 'Oricon 芸能',
+        url: 'https://assets.wor.jp/rss/rdf/oricon/entertainment.rdf',
+        color: '#da4d95',
+        bgImg: 'assets/news_oricon.png'
+    },
+    {
+        name: 'Bloomberg Tech',
+        url: 'https://assets.wor.jp/rss/rdf/bloomberg/technology.rdf',
+        color: '#2b00f7',
+        bgImg: 'assets/news_bloomberg.png'
+    }
+];
+
 async function renderNews(container) {
     const wrapper = document.createElement('div');
     wrapper.className = 'news-view';
@@ -202,62 +247,113 @@ async function renderNews(container) {
     container.appendChild(wrapper);
 
     // Show loading skeleton or text
-    scroller.innerHTML = '<div style="padding:48px; font-size:1.5rem; opacity:0.6;">Loading News...</div>';
+    scroller.innerHTML = '<div style="padding:48px; font-size:1.5rem; opacity:0.6;">Loading News from Multiple Sources...</div>';
 
     try {
-        // Fetch if cache is empty or old (e.g., 5 mins)
         const now = Date.now();
+        // 5 minute cache
         if (!newsCache || (now - lastNewsFetch > 300000)) {
-            const res = await fetch('https://assets.wor.jp/rss/rdf/reuters/top.rdf');
-            if (!res.ok) throw new Error('Network response was not ok');
-            const str = await res.text();
-            const parser = new DOMParser();
-            const xml = parser.parseFromString(str, "text/xml");
-            const items = Array.from(xml.querySelectorAll('item')).slice(0, 5); // Start with top 5
+            // Pick 3 random feeds to mix, plus always include Reuters Top or simply mix all?
+            // Let's fetch 3 random ones to keep it varied but fast.
+            const shuffled = RSS_FEEDS.sort(() => 0.5 - Math.random());
+            const selectedFeeds = shuffled.slice(0, 3);
 
-            newsCache = items.map(item => {
-                const title = item.querySelector('title')?.textContent || 'No Title';
-                const link = item.querySelector('link')?.textContent || '#';
-                const dateStr = item.querySelector('dc\\:date, date')?.textContent || new Date().toISOString();
-                // Try to get description or encoded content. Reuters RSS often puts summaries in description.
-                let description = item.querySelector('description')?.textContent || '';
-                // Strip HTML tags from description if present (Reuters often has HTML)
-                description = description.replace(/<[^>]*>?/gm, '');
+            // Parallel Fetch
+            const promises = selectedFeeds.map(feed =>
+                fetch(feed.url)
+                    .then(res => res.ok ? res.text() : null)
+                    .then(str => {
+                        if (!str) return [];
+                        const parser = new DOMParser();
+                        const xml = parser.parseFromString(str, "text/xml");
+                        const items = Array.from(xml.querySelectorAll('item')).slice(0, 4); // Take top 4 from each
+                        return items.map(item => {
+                            const title = item.querySelector('title')?.textContent || 'No Title';
+                            const link = item.querySelector('link')?.textContent || '#';
+                            const dateNode = item.querySelector('dc\\:date, date, pubDate');
+                            const dateStr = dateNode?.textContent || new Date().toISOString();
+                            let description = item.querySelector('description')?.textContent || '';
+                            description = description.replace(/<[^>]*>?/gm, '');
 
-                return {
-                    title,
-                    source: 'Reuters', // Hardcoded for this feed, could parse channel title
-                    link,
-                    date: new Date(dateStr),
-                    description: description,
-                    // Generic dark gradient background
-                    img: `linear-gradient(135deg, #1a1a1a, #2a2a2a)`
-                };
-            });
+                            return {
+                                title,
+                                source: feed.name,
+                                sourceColor: feed.color,
+                                link,
+                                date: new Date(dateStr),
+                                description,
+                                bgImg: feed.bgImg
+                            };
+                        });
+                    })
+                    .catch(err => {
+                        console.warn(`Failed to fetch ${feed.name}`, err);
+                        return [];
+                    })
+            );
+
+            const results = await Promise.all(promises);
+            // Flatten and Sort by Date (Newest first)
+            let allNews = results.flat().sort((a, b) => b.date - a.date);
+
+            // Limit to top 10 total
+            newsCache = allNews.slice(0, 10);
             lastNewsFetch = now;
         }
 
+        if (newsCache.length === 0) throw new Error("No news available");
+
         // Render cache
         scroller.innerHTML = '';
+
+        // Add pagination indicator container to wrapper (not scroller)
+        let indicatorBox = wrapper.querySelector('.news-indicator-box');
+        if (!indicatorBox) {
+            indicatorBox = document.createElement('div');
+            indicatorBox.className = 'news-indicator-box';
+            wrapper.appendChild(indicatorBox);
+        }
+        indicatorBox.innerHTML = newsCache.map((_, i) => `<div class="news-dot ${i === 0 ? 'active' : ''}"></div>`).join('');
+
+        // Add click listeners to dots
+        const dots = indicatorBox.querySelectorAll('.news-dot');
+        dots.forEach((dot, index) => {
+            dot.addEventListener('click', () => {
+                scroller.scrollTo({
+                    left: index * scroller.clientWidth,
+                    behavior: 'smooth'
+                });
+            });
+        });
+
         newsCache.forEach((item, index) => {
             const card = document.createElement('div');
             card.className = 'news-card';
-            // Alternating gradients logic
-            const hue = (200 + index * 20) % 360; // Cool blues/purples
-            card.style.background = `linear-gradient(135deg, hsl(${hue}, 30%, 20%), hsl(${hue}, 40%, 10%))`;
+            // Set base styling just in case, though the inner div handles the visual bg
+            card.style.background = '#111';
 
-            // Time formatting
-            const timeDiff = Math.floor((Date.now() - item.date) / 60000); // mins
-            // Simple format for reference image style: "11月24日 10:51"
+            const timeDiff = Math.floor((Date.now() - item.date) / 60000);
             const dateFmt = item.date.toLocaleString('ja-JP', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
-            // QR Code URL (using goqr.me API as it's simple and reliable)
             const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(item.link)}`;
 
             card.innerHTML = `
-                <div class="news-content">
+                <div class="news-bg" style="
+                    position: absolute; inset: 0; 
+                    background: url('${item.bgImg}') center/cover no-repeat; 
+                    z-index: 0;
+                "></div>
+                <!-- Gradient Overlay for readability -->
+                <div class="news-bg-overlay" style="
+                    position: absolute; inset: 0;
+                    background: linear-gradient(to right, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.7) 100%);
+                    z-index: 1;
+                "></div>
+
+                <div class="news-content" style="z-index: 2;">
                     <div class="news-header-row">
-                        <span class="news-source">${item.source}</span>
+                        <!-- Apply dynamic source name and optional color accent border -->
+                        <span class="news-source" style="border-bottom-color: ${item.sourceColor || '#ccc'};">${item.source}</span>
                     </div>
                     
                     <div class="news-body">
@@ -276,6 +372,18 @@ async function renderNews(container) {
             `;
             scroller.appendChild(card);
         });
+
+        // Add scroll listener for dots
+        scroller.addEventListener('scroll', () => {
+            const width = scroller.clientWidth;
+            const scrollLeft = scroller.scrollLeft;
+            const index = Math.round(scrollLeft / width);
+
+            const dots = indicatorBox.querySelectorAll('.news-dot');
+            dots.forEach((dot, i) => {
+                dot.classList.toggle('active', i === index);
+            });
+        }, { passive: true });
 
     } catch (e) {
         console.error("News Fetch Failed", e);
