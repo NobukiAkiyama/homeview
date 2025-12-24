@@ -30,7 +30,7 @@ function initClock() {
 const WIDGETS = [
     { id: 'weather', duration: 15000, render: renderWeather },
     { id: 'news', duration: 20000, render: renderNews },
-    { id: 'calendar', duration: 15000, render: renderCalendar }
+    { id: 'notepad', duration: 15000, render: renderNotepad }
 ];
 
 let currentIndex = 0;
@@ -522,35 +522,66 @@ async function renderNews(container) {
     }
 }
 
-function renderCalendar(container) {
-    const wrapper = document.createElement('div');
-    wrapper.className = 'calendar-view';
-    wrapper.innerHTML = '<h2 style="font-size:1.8rem; font-weight:600; margin-bottom:16px;">Schedule</h2>';
+function renderNotepad(container) {
+    // 1. Load saved note
+    const SAVED_KEY = 'homeview_note';
+    const savedText = localStorage.getItem(SAVED_KEY) || '';
 
-    const scroller = document.createElement('div');
-    scroller.className = 'cal-scroller';
-
-    for (let i = 0; i < 7; i++) {
-        const d = new Date(); d.setDate(d.getDate() + i);
-        const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
-        const dayNum = d.getDate();
-
-        const row = document.createElement('div');
-        row.className = 'cal-day-row';
-        row.innerHTML = `
-            <div class="cal-date-badge">
-                <span style="font-size:0.9rem; opacity:0.8">${dayName}</span>
-                <span style="font-size:1.4rem">${dayNum}</span>
+    // 2. Create UI with Premium Dark Style
+    // Using inline styles for simplicity within the widget constraints, ensuring consistency.
+    container.innerHTML = `
+        <div class="notepad-view" style="
+            background: rgba(30, 30, 35, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            padding: 24px;
+            border-radius: 24px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.08);
+            color: #e0e0e0;
+        ">
+            <!-- Header -->
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                <h2 style="font-size:1.4rem; font-weight:600; margin:0; letter-spacing:0.05em; opacity:0.9;">NOTES</h2>
+                <span id="note-status" style="font-size:0.8rem; opacity:0.5; font-weight:500; letter-spacing:0.05em;">READY</span>
             </div>
-            <div class="cal-event-info">
-                <span class="cal-time">10:00 AM - 11:30 AM</span>
-                <div class="cal-title">${i === 0 ? 'Team Sync & Review' : 'Focus Time'}</div>
-            </div>
-        `;
-        scroller.appendChild(row);
-    }
-    wrapper.appendChild(scroller);
-    container.appendChild(wrapper);
+
+            <!-- Text Area -->
+            <textarea id="notepad-area" style="
+                flex: 1;
+                width: 100%;
+                background: transparent;
+                border: none;
+                resize: none;
+                color: #ffffff;
+                font-family: 'Inter', sans-serif; /* Fallback to system fonts */
+                font-size: 1.1rem;
+                line-height: 1.6;
+                outline: none;
+                padding: 0;
+            " placeholder="Tap to start typing...">${savedText}</textarea>
+        </div>
+    `;
+
+    // 3. Attach Logic
+    const textarea = container.querySelector('#notepad-area');
+    const statusEl = container.querySelector('#note-status');
+    let timeoutId;
+
+    textarea.addEventListener('input', () => {
+        statusEl.textContent = 'SAVING...';
+        statusEl.style.opacity = '1';
+
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => {
+            localStorage.setItem(SAVED_KEY, textarea.value);
+            statusEl.textContent = 'SAVED';
+            statusEl.style.opacity = '0.5';
+        }, 500); // Debounce save
+    });
 }
 
 /* --- Interaction --- */
