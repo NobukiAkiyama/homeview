@@ -392,58 +392,163 @@ async function renderNews(container) {
         // Render cache
         scroller.innerHTML = '';
 
-        // Smart Pagination: Show max 5 indicators (4 dots + 1 active bar) when 5+ items
-        let indicatorBox = wrapper.querySelector('.news-indicator-box');
-        if (!indicatorBox) {
-            indicatorBox = document.createElement('div');
-            indicatorBox.className = 'news-indicator-box';
-            wrapper.appendChild(indicatorBox);
+        // Liquid Pagination Configuration
+        const DOT_SIZE = 8;
+        const DOT_GAP = 12;
+        const PADDING_LEFT = 16; // .liquid-pagination padding-left
+        const ACTIVE_WIDTH_BASE = 2.5 * DOT_SIZE; // 20px
+        const MAX_STRETCH = 0.5 * DOT_SIZE; // 4px extra
+        const PITCH = DOT_SIZE + DOT_GAP; // 20px center-to-center distance
+
+        let paginationBox = wrapper.querySelector('.liquid-pagination');
+        if (!paginationBox) {
+            paginationBox = document.createElement('div');
+            paginationBox.className = 'liquid-pagination';
+            wrapper.appendChild(paginationBox);
         }
 
         const totalItems = newsCache.length;
-        const MAX_VISIBLE = 5;
+        // Generate Dots
+        // Note: For simplicity in this liquid version, we show all dots if count is reasonable (< 15).
+        // If > 15, we might need a sliding window, but let's assume < 15 for now as per plan.
+        const visibleCount = Math.min(totalItems, 12);
 
-        function renderPaginationDots(activeIndex) {
-            if (totalItems <= MAX_VISIBLE) {
-                // Show all dots normally
-                indicatorBox.innerHTML = newsCache.map((_, i) =>
-                    `<div class="news-dot ${i === activeIndex ? 'active' : ''}" data-index="${i}"></div>`
-                ).join('');
-            } else {
-                // Cyclic pagination: bar position cycles through 0-4 as user scrolls
-                let dots = [];
+        let dotsHtml = `<div class="liquid-pill"></div>`;
+        for (let i = 0; i < visibleCount; i++) {
+            dotsHtml += `<div class="liquid-dot" data-index="${i}"></div>`;
+        }
+        paginationBox.innerHTML = dotsHtml;
 
-                // Calculate which position (0-4) the bar should be at
-                // This ensures the bar moves on EVERY scroll (forward and backward)
-                const barPosition = activeIndex % MAX_VISIBLE;
+        const pill = paginationBox.querySelector('.liquid-pill');
+        const dots = paginationBox.querySelectorAll('.liquid-dot');
 
-                // Calculate the window of items to show
-                // Always center the window around the active item based on bar position
-                let startIndex = activeIndex - barPosition;
+        // Helper: Easing & Math
+        const lerp = (start, end, t) => start * (1 - t) + end * t;
+        const clamp = (val, min, max) => Math.min(Math.max(val, min), max);
 
-                // Clamp to valid range
-                if (startIndex < 0) {
-                    startIndex = 0;
-                } else if (startIndex > totalItems - MAX_VISIBLE) {
-                    startIndex = totalItems - MAX_VISIBLE;
-                }
+        // Custom Easing for asymmetry
+        // easeOut for leading edge (fast start)
+        const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
+        // easeIn for trailing edge (slow start, catches up late)
+        const easeInCubic = t => t * t * t;
 
-                // Generate 5 dots
-                for (let i = 0; i < MAX_VISIBLE; i++) {
-                    const itemIndex = startIndex + i;
-                    const isActive = i === barPosition && itemIndex === activeIndex;
-                    dots.push(`<div class="news-dot ${isActive ? 'active' : ''}" data-index="${itemIndex}"></div>`);
-                }
+        // Stretch curve: sin(pi * t) -> 0 at 0, 1 at 0.5, 0 at 1
+        const getStretch = t => Math.sin(Math.PI * t);
 
-                indicatorBox.innerHTML = dots.join('');
+        function updateLiquidPagination(scrollProgress) {
+            // scrollProgress is a float (0.0 to totalItems-1.0)
+
+            // 1. Calculate Pill Position & Width
+            const currentIndex = Math.floor(scrollProgress);
+            const nextIndex = Math.min(currentIndex + 1, visibleCount - 1);
+            const progress = scrollProgress - currentIndex; // 0.0 to 1.0 within the segment
+
+            // Determine direction to apply asymmetry
+            // We assume forward movement if we just look at progress, but for simplicity:
+            // Let's model "Rightward" movement logic for generic 0->1.
+            // If dragging left (progress decreasing), we effectively want the "Left" edge to lead.
+            // However, a simple asymmetrical ease based on 0->1 works well enough for "moving right".
+
+            // Center positions of dots relative to container
+            // dot[i] center = PADDING_LEFT + (i * PITCH) + (DOT_SIZE / 2)
+            // But we place pill using 'left' and 'width'.
+
+            // Let's calculate LEFT Edge and RIGHT Edge of the target pill position.
+            // Idle Width w_active = ACTIVE_WIDTH_BASE.
+            // Centered on dot i:
+            // Center_i = PADDING_LEFT + i * PITCH + DOT_SIZE/2
+            // Left_i = Center_i - w_active/2
+            // Right_i = Center_i + w_active/2
+
+            const getPillBounds = (idx) => {
+                const center = PADDING_LEFT + idx * PITCH + DOT_SIZE / 2;
+                return {
+                    left: center - ACTIVE_WIDTH_BASE / 2,
+                    right: center + ACTIVE_WIDTH_BASE / 2
+                };
+            };
+
+            const currBounds = getPillBounds(currentIndex);
+            const nextBounds = getPillBounds(nextIndex);
+
+            // Apply Stretch & Asymmetry
+            // We want "Leading edge moves fast", "Trailing edge moves slow".
+            // Moving i -> i+1 (Right interaction)
+            // Right Edge uses easeOut (moves fast)
+            // Left Edge uses easeIn (moves slow)
+
+            // To handle Bi-directional accurately without tracking velocity state,
+            // we can use a symmetric "Rubber Band" approximation or just stick to the requested asymmetry.
+            // Requested: "Right move: Right edge leads. Left move: Left edge leads."
+            // Since we only have 'progress' (0..1), we can just treat it as 0->1.
+
+            // Settle Phase is implicit in the easing approaching 0 or 1.
+
+            const rightEdge = lerp(currBounds.right, nextBounds.right, easeOutCubic(progress));
+            const leftEdge = lerp(currBounds.left, nextBounds.left, easeInCubic(progress));
+
+            // Extra Stretch from the "Stretch Phase" logic (width += stretch * extra)
+            // The differential easing above naturally creates stretch.
+            // Let's Add explicit extra stretch if needed, or rely on the math.
+            // Diff easing: Midpoint (0.5) -> Right has moved ~0.875, Left ~0.125.
+            // Gap is 12px. Delta centers = 20px.
+            // Right moves 0->20. Left moves 0->20.
+            // At 0.5: Right is at 17.5, Left is at 2.5.
+            // Original Width = 20.
+            // New Width = (Right_i + 17.5) - (Left_i + 2.5) 
+            // = (Start_R + 17.5) - (Start_L + 2.5)
+            // = (Start_L + 20 + 17.5) - (Start_L + 2.5) = 20 + 15 = 35. (+15px stretch).
+            // This might be too much stretch.
+
+            // Let's tone down the asymmetry or blend with linear.
+            const t_right = easeOutCubic(progress) * 0.7 + progress * 0.3;
+            const t_left = easeInCubic(progress) * 0.7 + progress * 0.3;
+
+            let finalLeft = lerp(currBounds.left, nextBounds.left, t_left);
+            let finalRight = lerp(currBounds.right, nextBounds.right, t_right);
+            let finalWidth = finalRight - finalLeft;
+
+            // Clamp width to prevent inversion or too thin
+            if (finalWidth < DOT_SIZE) {
+                // Should not happen with logic above but safety
+                const center = (finalLeft + finalRight) / 2;
+                finalWidth = DOT_SIZE;
+                finalLeft = center - DOT_SIZE / 2;
             }
+
+            // Apply to Pill
+            pill.style.left = `${finalLeft}px`;
+            pill.style.width = `${finalWidth}px`;
+
+            // 2. Neighbor Effects (Scale/Opacity)
+            dots.forEach((dot, idx) => {
+                const dist = Math.abs(scrollProgress - idx);
+                // "Close" means dist < 1.0 roughly.
+                // Target dot (closest integer) gets full opacity? 
+                // Spec: "Target dot opacity 0.45->0.75"
+                // But pill is on top.
+                // The dots BEHIND the pill should be hidden or allow the pill to cover them.
+                // Since pill is opaque white and dots are semi-transparent white, 
+                // covering is fine.
+
+                // Let's implement the "Target dot slightly scales up"
+                if (dist < 1.0) {
+                    // 1.0 -> 0.0 distance
+                    // scale 1.0 -> 1.05
+                    const scale = 1.0 + (1.0 - dist) * 0.15; // slightly bolder
+                    const opacity = 0.35 + (1.0 - dist) * 0.4;
+                    dot.style.transform = `scale(${scale})`;
+                    dot.style.opacity = opacity;
+                } else {
+                    dot.style.transform = 'scale(1.0)';
+                    dot.style.opacity = '0.35';
+                }
+            });
         }
 
-        renderPaginationDots(0);
-
-        // Add click listeners to dots
-        indicatorBox.addEventListener('click', (e) => {
-            const dot = e.target.closest('.news-dot');
+        // Click to Scroll
+        paginationBox.addEventListener('click', (e) => {
+            const dot = e.target.closest('.liquid-dot');
             if (dot) {
                 const targetIndex = parseInt(dot.dataset.index);
                 scroller.scrollTo({
@@ -452,6 +557,9 @@ async function renderNews(container) {
                 });
             }
         });
+
+        // Initial set
+        updateLiquidPagination(0);
 
         newsCache.forEach((item, index) => {
             const card = document.createElement('div');
@@ -504,10 +612,13 @@ async function renderNews(container) {
         scroller.addEventListener('scroll', () => {
             const width = scroller.clientWidth;
             const scrollLeft = scroller.scrollLeft;
-            const index = Math.round(scrollLeft / width);
+            // High-precision scroll tracking for liquid animation
+            // Using requestAnimationFrame to decouple slightly if needed, but direct update is usually fine for UI sync
+            const progress = scrollLeft / width; // float 0.0 -> N.0
 
-            // Re-render pagination with new active index
-            renderPaginationDots(index);
+            requestAnimationFrame(() => {
+                updateLiquidPagination(progress);
+            });
         }, { passive: true });
 
     } catch (e) {

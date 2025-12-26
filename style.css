@@ -190,7 +190,8 @@ body {
 
 .weather-sub {
     font-size: 1.2rem;
-    color: var(--text-secondary);
+    color: var(--text-primary);
+    /* previously var(--text-secondary) */
 }
 
 .weather-big-temp {
@@ -265,40 +266,61 @@ body {
     color: #fff;
 }
 
-/* News Indicator (Horizontal Pill) */
-.news-indicator-box {
+/* --- Liquid Pagination (News) --- */
+.liquid-pagination {
     position: absolute;
     bottom: 24px;
     left: 50%;
     transform: translateX(-50%);
-    width: auto;
+    display: flex;
+    align-items: center;
+    /* Use gap for layout, but pill track calculation needs manual handling usually.
+       For fixed layout: 
+       Dot diameter: 8px (d)
+       Gap: 12px
+       Pitch (center-to-center): 20px
+    */
+    gap: 12px;
 
     background: rgba(0, 0, 0, 0.4);
     backdrop-filter: blur(8px);
     border-radius: 100px;
-    padding: 8px 16px;
-    display: flex;
-    gap: 12px;
+    padding: 10px 16px;
+    /* Slightly larger padding for pill to move */
     z-index: 10;
     border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.news-dot {
+.liquid-dot {
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.3);
-    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    background: rgba(255, 255, 255, 0.35);
+    /* Base opacity per spec */
+    transition: transform 0.2s ease, opacity 0.2s ease;
     cursor: pointer;
+    position: relative;
+    z-index: 1;
+    /* Below pill */
 }
 
-.news-dot.active {
-    background: #fff;
-    width: 24px;
-    /* Elongated bar - horizontal for news */
+/* The active pill floating on top */
+.liquid-pill {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    /* Will be set by JS */
+    transform: translateY(-50%);
     height: 8px;
-    border-radius: 4px;
-    box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+    width: 20px;
+    /* Base active width (2.5 * d) */
+    background: #ffffff;
+    border-radius: 999px;
+    z-index: 2;
+    /* Above dots */
+    pointer-events: none;
+    /* Let clicks pass through to dots/container */
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.6);
 }
 
 
