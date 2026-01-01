@@ -140,7 +140,7 @@ function scrollToWidget(index) {
         top: height * index,
         behavior: 'smooth'
     });
-    // Pagination updates via handleScroll listener
+    updatePagination(index);
 }
 
 /* --- Renderers --- */
