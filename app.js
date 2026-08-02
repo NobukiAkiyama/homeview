@@ -281,48 +281,89 @@ let lastNewsFetch = 0;
 
 const RSS_FEEDS = [
     {
-        name: 'ロイター Top',
-        url: 'https://assets.wor.jp/rss/rdf/reuters/top.rdf',
-        color: '#ff8000',
+        name: 'トップ',
+        url: 'https://news.google.com/rss?hl=ja&gl=JP&ceid=JP:ja',
+        color: '#4285f4',
         bgImg: 'assets/news_bloomberg.png'
     },
     {
-        name: '日経 速報',
-        url: 'https://assets.wor.jp/rss/rdf/nikkei/news.rdf',
+        name: 'ビジネス',
+        url: 'https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=ja&gl=JP&ceid=JP:ja',
         color: '#0066b3',
         bgImg: 'assets/news_nikkei.png'
     },
     {
-        name: '日経 テック',
-        url: 'https://assets.wor.jp/rss/rdf/nikkei/technology.rdf',
+        name: 'テクノロジー',
+        url: 'https://news.google.com/rss/headlines/section/topic/TECHNOLOGY?hl=ja&gl=JP&ceid=JP:ja',
         color: '#00afcc',
         bgImg: 'assets/news_nikkei.png'
     },
     {
-        name: '読売 新着',
-        url: 'https://assets.wor.jp/rss/rdf/yomiuri/latestnews.rdf',
-        color: '#ef492d',
-        bgImg: 'assets/news_yomiuri.png'
-    },
-    {
-        name: '読売 科学',
-        url: 'https://assets.wor.jp/rss/rdf/yomiuri/science.rdf',
-        color: '#4b9846',
-        bgImg: 'assets/news_yomiuri.png'
-    },
-    {
-        name: 'Oricon 芸能',
-        url: 'https://assets.wor.jp/rss/rdf/oricon/entertainment.rdf',
+        name: 'エンタメ',
+        url: 'https://news.google.com/rss/headlines/section/topic/ENTERTAINMENT?hl=ja&gl=JP&ceid=JP:ja',
         color: '#da4d95',
         bgImg: 'assets/news_oricon.png'
     },
     {
-        name: 'Bloomberg Tech',
-        url: 'https://assets.wor.jp/rss/rdf/bloomberg/technology.rdf',
+        name: 'サイエンス',
+        url: 'https://news.google.com/rss/headlines/section/topic/SCIENCE?hl=ja&gl=JP&ceid=JP:ja',
+        color: '#4b9846',
+        bgImg: 'assets/news_yomiuri.png'
+    },
+    {
+        name: 'ヘルス',
+        url: 'https://news.google.com/rss/headlines/section/topic/HEALTH?hl=ja&gl=JP&ceid=JP:ja',
         color: '#2b00f7',
         bgImg: 'assets/news_bloomberg.png'
     }
 ];
+
+// XSS 対策: 外部 RSS 由来の文字列を HTML エスケープする
+function escapeHtml(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+// RSS を rss2json プロキシ経由で取得（CORS 回避）
+// タイムアウト + リトライ付き
+const RSS_TIMEOUT_MS = 10000;
+const RSS_MAX_RETRIES = 1;
+
+async function fetchFeedViaProxy(feed, attempt = 0) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), RSS_TIMEOUT_MS);
+
+    try {
+        const proxyUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feed.url)}`;
+        const res = await fetch(proxyUrl, { signal: controller.signal });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (data.status !== 'ok') throw new Error(data.message || 'RSS parse error');
+
+        return (data.items || []).slice(0, 4).map(item => ({
+            title: item.title || 'No Title',
+            source: feed.name,
+            sourceColor: feed.color,
+            link: item.link || '#',
+            date: new Date(item.pubDate || Date.now()),
+            description: (item.description || '').replace(/<[^>]*>?/gm, ''),
+            bgImg: feed.bgImg
+        }));
+    } catch (err) {
+        if (attempt < RSS_MAX_RETRIES) {
+            console.warn(`Retry ${feed.name} (attempt ${attempt + 1})`, err);
+            return fetchFeedViaProxy(feed, attempt + 1);
+        }
+        console.warn(`Failed to fetch ${feed.name}`, err);
+        return [];
+    } finally {
+        clearTimeout(timer);
+    }
+}
 
 async function renderNews(container) {
     const wrapper = document.createElement('div');
@@ -344,39 +385,8 @@ async function renderNews(container) {
             const shuffled = RSS_FEEDS.sort(() => 0.5 - Math.random());
             const selectedFeeds = shuffled.slice(0, 3);
 
-            // Parallel Fetch
-            const promises = selectedFeeds.map(feed =>
-                fetch(feed.url)
-                    .then(res => res.ok ? res.text() : null)
-                    .then(str => {
-                        if (!str) return [];
-                        const parser = new DOMParser();
-                        const xml = parser.parseFromString(str, "text/xml");
-                        const items = Array.from(xml.querySelectorAll('item')).slice(0, 4); // Take top 4 from each
-                        return items.map(item => {
-                            const title = item.querySelector('title')?.textContent || 'No Title';
-                            const link = item.querySelector('link')?.textContent || '#';
-                            const dateNode = item.querySelector('dc\\:date, date, pubDate');
-                            const dateStr = dateNode?.textContent || new Date().toISOString();
-                            let description = item.querySelector('description')?.textContent || '';
-                            description = description.replace(/<[^>]*>?/gm, '');
-
-                            return {
-                                title,
-                                source: feed.name,
-                                sourceColor: feed.color,
-                                link,
-                                date: new Date(dateStr),
-                                description,
-                                bgImg: feed.bgImg
-                            };
-                        });
-                    })
-                    .catch(err => {
-                        console.warn(`Failed to fetch ${feed.name}`, err);
-                        return [];
-                    })
-            );
+            // Parallel Fetch (via CORS-safe proxy with timeout + retry)
+            const promises = selectedFeeds.map(feed => fetchFeedViaProxy(feed));
 
             const results = await Promise.all(promises);
             // Flatten and Sort by Date (Newest first)
@@ -588,12 +598,12 @@ async function renderNews(container) {
                 <div class="news-content" style="z-index: 2;">
                     <div class="news-header-row">
                         <!-- Apply dynamic source name and optional color accent border -->
-                        <span class="news-source" style="border-bottom-color: ${item.sourceColor || '#ccc'};">${item.source}</span>
+                        <span class="news-source" style="border-bottom-color: ${item.sourceColor || '#ccc'};">${escapeHtml(item.source)}</span>
                     </div>
                     
                     <div class="news-body">
-                        <div class="news-headline">${item.title}</div>
-                        <div class="news-description">${item.description}</div>
+                        <div class="news-headline">${escapeHtml(item.title)}</div>
+                        <div class="news-description">${escapeHtml(item.description)}</div>
                     </div>
 
                     <div class="news-footer-row">
