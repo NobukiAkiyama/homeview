@@ -175,33 +175,44 @@ async function renderWeather(container) {
     container.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;height:100%;font-size:1.5rem;opacity:0.6;">Locating...</div>';
 
     try {
-        // 1. Get Location
-        const pos = await new Promise((resolve, reject) => {
-            if (!navigator.geolocation) reject(new Error("Geolocation not supported"));
-            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 });
-        });
-        const { latitude: lat, longitude: lon } = pos.coords;
+        // 1. Get Location (browser geolocation, with IP-based fallback via ipapi.co)
+        // Kick off the IP geolocation lookup early so it can run in parallel with the browser prompt.
+        const ipGeoPromise = fetch('https://ipapi.co/json/')
+            .then((res) => (res.ok ? res.json() : null))
+            .catch(() => null);
 
-        // 2. Fetch Weather Data
-        // 2. Fetch Weather & Location Data Parallelly
+        let lat;
+        let lon;
+        try {
+            const pos = await new Promise((resolve, reject) => {
+                if (!navigator.geolocation) reject(new Error("Geolocation not supported"));
+                navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 });
+            });
+            lat = pos.coords.latitude;
+            lon = pos.coords.longitude;
+        } catch (err) {
+            // Fallback: use IP-based coordinates from ipapi.co
+            const ipGeo = await ipGeoPromise;
+            if (!ipGeo) throw err;
+            lat = ipGeo.latitude;
+            lon = ipGeo.longitude;
+        }
+
+        // 2. Fetch Weather Data & Location (IP-based) in Parallel
         const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,relative_humidity_2m,is_day&hourly=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=1`;
-        const geoUrl = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=ja`;
 
-        const [weatherRes, geoRes] = await Promise.all([
+        const [weatherRes, geoData] = await Promise.all([
             fetch(weatherUrl),
-            fetch(geoUrl)
+            ipGeoPromise
         ]);
 
         if (!weatherRes.ok) throw new Error('Weather API Error');
         const data = await weatherRes.json();
-        const geoData = await geoRes.json();
 
         // Extract location name (Concat parts for full address: e.g. "OsakaSakaiHigashi-ku")
-        const locationName = [
-            geoData.principalSubdivision,
-            geoData.city,
-            geoData.locality
-        ].filter(Boolean).join('') || 'Unknown Location';
+        const locationName = geoData
+            ? [geoData.region, geoData.city].filter(Boolean).join('') || 'Unknown Location'
+            : 'Unknown Location';
 
         // 3. Parse Data
         const current = data.current;
