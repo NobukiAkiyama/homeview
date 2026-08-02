@@ -190,10 +190,12 @@ async function renderWeather(container) {
             });
             lat = pos.coords.latitude;
             lon = pos.coords.longitude;
-        } catch (err) {
+        } catch (geoErr) {
             // Fallback: use IP-based coordinates from ipwho.is
             const ipGeo = await ipGeoPromise;
-            if (!ipGeo) throw err;
+            if (!ipGeo) {
+                throw new Error('位置情報が取得できませんでした。ブラウザの位置情報を許可するか、IP-based ジオロケーションをお試しください。');
+            }
             lat = ipGeo.latitude;
             lon = ipGeo.longitude;
         }
