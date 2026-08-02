@@ -175,9 +175,9 @@ async function renderWeather(container) {
     container.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;height:100%;font-size:1.5rem;opacity:0.6;">Locating...</div>';
 
     try {
-        // 1. Get Location (browser geolocation, with IP-based fallback via ipapi.co)
+        // 1. Get Location (browser geolocation, with IP-based fallback via ipwho.is)
         // Kick off the IP geolocation lookup early so it can run in parallel with the browser prompt.
-        const ipGeoPromise = fetch('https://ipapi.co/json/')
+        const ipGeoPromise = fetch('https://ipwho.is/')
             .then((res) => (res.ok ? res.json() : null))
             .catch(() => null);
 
@@ -191,7 +191,7 @@ async function renderWeather(container) {
             lat = pos.coords.latitude;
             lon = pos.coords.longitude;
         } catch (err) {
-            // Fallback: use IP-based coordinates from ipapi.co
+            // Fallback: use IP-based coordinates from ipwho.is
             const ipGeo = await ipGeoPromise;
             if (!ipGeo) throw err;
             lat = ipGeo.latitude;
