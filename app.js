@@ -9,6 +9,8 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 /* --- Clock --- */
+let clockTimerId = null;
+
 function initClock() {
     const clockEl = document.getElementById('clock-text');
     const dateEl = document.getElementById('date-text');
@@ -23,7 +25,8 @@ function initClock() {
         dateEl.textContent = now.toLocaleDateString('en-US', options);
     }
     update();
-    setInterval(update, 1000);
+    clockTimerId = setInterval(update, 1000);
+    // clearInterval(clockTimerId) hook available to stop the clock
 }
 
 /* --- Carousel / Widgets --- */
